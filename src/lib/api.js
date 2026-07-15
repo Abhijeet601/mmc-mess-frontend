@@ -1,4 +1,9 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
+const DEFAULT_API_URL = import.meta.env.PROD
+  ? "https://mmc-mess-backend-production.up.railway.app"
+  : "http://127.0.0.1:8000";
+
+const configuredApiUrl = (import.meta.env.VITE_API_BASE_URL || DEFAULT_API_URL).replace(/\/+$/, "");
+const API_BASE_URL = configuredApiUrl.endsWith("/api") ? configuredApiUrl : `${configuredApiUrl}/api`;
 
 function getToken() {
   return localStorage.getItem("mess_api_token");
