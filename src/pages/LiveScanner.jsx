@@ -1,0 +1,449 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Html5Qrcode } from "html5-qrcode";
+import {
+  AlertTriangle,
+  Camera,
+  CheckCircle2,
+  Clock,
+  RefreshCw,
+  ShieldAlert,
+  ShieldCheck,
+  University,
+  Wifi,
+  WifiOff,
+  XCircle,
+} from "lucide-react";
+import { apiRequest } from "../lib/api";
+
+const SCANNER_ID = "mess-live-qr-reader";
+
+/* ------------------------------------------------------------------ */
+/* Sound                                                               */
+/* ------------------------------------------------------------------ */
+function playSuccessSound() {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    const context = new AudioContext();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.frequency.setValueAtTime(660, context.currentTime);
+    oscillator.frequency.setValueAtTime(880, context.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.12, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.22);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.22);
+    oscillator.onended = () => context.close();
+  } catch (error) {
+    console.warn("[MessScanner] success audio unavailable", error);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Error classification                                                */
+/* Backend is expected to return either error.code or a message that   */
+/* matches one of these patterns. This keeps the four required states  */
+/* visually and textually distinct instead of one generic red banner.  */
+/* ------------------------------------------------------------------ */
+const ERROR_STATES = {
+  QR_EXPIRED: {
+    title: "QR Expired",
+    detail: "Ask student to show the latest live QR",
+    icon: Clock,
+    tone: "amber",
+  },
+  QR_USED: {
+    title: "QR Already Used",
+    detail: "This code cannot be accepted again",
+    icon: ShieldAlert,
+    tone: "red",
+  },
+  QR_INVALID: {
+    title: "Invalid Mess QR",
+    detail: "This code could not be verified",
+    icon: XCircle,
+    tone: "red",
+  },
+  MEAL_ALREADY_MARKED: {
+    title: "Meal Attendance Already Marked",
+    detail: "This student's attendance for the current meal is already recorded",
+    icon: AlertTriangle,
+    tone: "orange",
+  },
+  ADMIN_SESSION_REQUIRED: {
+    title: "Admin Session Required",
+    detail: "Log out and sign in through the Admin or Super Admin portal",
+    icon: ShieldAlert,
+    tone: "red",
+  },
+};
+
+function classifyError(error) {
+  const code = error?.code || error?.data?.code;
+  if (code && ERROR_STATES[code]) return ERROR_STATES[code];
+
+  const msg = (error?.message || "").toLowerCase();
+  if (msg.includes("expired")) return ERROR_STATES.QR_EXPIRED;
+  if (msg.includes("already used") || msg.includes("reused") || msg.includes("used already")) return ERROR_STATES.QR_USED;
+  if (msg.includes("already marked") || msg.includes("already recorded")) return ERROR_STATES.MEAL_ALREADY_MARKED;
+  if (msg.includes("permission") || msg.includes("unauthorized") || msg.includes("token expired")) return ERROR_STATES.ADMIN_SESSION_REQUIRED;
+  return { ...ERROR_STATES.QR_INVALID, detail: error?.message || ERROR_STATES.QR_INVALID.detail };
+}
+
+const TONE_CLASSES = {
+  amber: "border-amber-200 bg-amber-50 text-amber-700",
+  red: "border-red-200 bg-red-50 text-red-700",
+  orange: "border-orange-200 bg-orange-50 text-orange-700",
+  blue: "border-blue-100 bg-blue-50 text-blue-700",
+};
+
+/* ------------------------------------------------------------------ */
+/* Success ID card                                                     */
+/* ------------------------------------------------------------------ */
+function StudentSuccessCard({ result }) {
+  const s = result.student;
+  const details = [
+    ["Registration No.", s.registration_number],
+    ["Admission No.", s.admission_number],
+    ["Course", s.course],
+    ["Department", s.department],
+    ["Year / Semester", [s.academic_year, s.semester].filter(Boolean).join(" / ")],
+    ["Hostel", s.hostel],
+    ["Room", s.room_number],
+    ["Current Meal", result.meal],
+    ["Scan Date", result.scan_date],
+    ["Exact Scan Time", result.scan_time],
+  ];
+
+  return (
+    <div className="animate-pulse-once rounded-xl3 border-2 border-green-400 bg-gradient-to-br from-green-50 via-white to-emerald-50 p-4 shadow-[0_0_35px_rgba(34,197,94,.28)] sm:p-5">
+      <div className="flex flex-col items-center justify-center gap-2 text-center text-green-700 sm:flex-row sm:gap-3">
+        <CheckCircle2 size={30} className="shrink-0 sm:size-[34px]" />
+        <h2 className="font-display text-xl font-semibold sm:text-2xl">Attendance Marked Successfully</h2>
+      </div>
+
+      <div className="mt-4 overflow-hidden rounded-xl3 border border-green-200 bg-white shadow-floating sm:mt-5">
+        <div className="flex items-center justify-between gap-2 bg-gradient-to-r from-blue-700 to-cyan-600 px-4 py-3 text-white sm:px-5">
+          <div className="flex min-w-0 items-center gap-2">
+            <University size={22} className="shrink-0 sm:size-[24px]" />
+            <div className="min-w-0">
+              <p className="truncate font-display text-sm font-semibold sm:text-base">Magadh Mahila College</p>
+              <p className="text-[10px] text-white/75">Digital Mess Attendance ID</p>
+            </div>
+          </div>
+          <ShieldCheck size={26} className="shrink-0 sm:size-[28px]" />
+        </div>
+
+        <div className="grid grid-cols-1 gap-5 p-4 sm:p-5 sm:grid-cols-[130px_1fr] md:grid-cols-[160px_1fr]">
+          <div className="mx-auto text-center sm:mx-0">
+            <img
+              src={s.photo_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(s.name)}`}
+              alt={s.name}
+              className="mx-auto h-32 w-32 rounded-xl2 border-4 border-green-100 object-cover sm:h-40 sm:w-36"
+            />
+            <div className="mt-3 rounded-full bg-green-100 px-3 py-1 text-sm font-bold text-green-700">MARKED</div>
+          </div>
+
+          <div>
+            <h3 className="font-display text-xl font-semibold text-dark sm:text-2xl">{s.name}</h3>
+            <p className="text-sm text-slate-500">Student ID: {s.registration_number}</p>
+            <div className="mt-4 grid grid-cols-1 gap-x-5 gap-y-3 xs:grid-cols-2 sm:grid-cols-2">
+              {details.map(([label, value]) => (
+                <div key={label}>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+                  <p className="break-words text-sm font-semibold text-slate-700">{value || "—"}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Main scanner                                                        */
+/* ------------------------------------------------------------------ */
+export default function LiveScanner() {
+  const scannerRef = useRef(null);
+  const mountedRef = useRef(false);
+  const processingRef = useRef(false);
+  const recentRef = useRef(new Map());
+  const resumeTimerRef = useRef(null);
+  const mealRef = useRef(null);
+  const startingRef = useRef(false);
+
+  const [cameras, setCameras] = useState([]);
+  const [cameraId, setCameraId] = useState("");
+  const [meal, setMeal] = useState(null);
+  const [status, setStatus] = useState("starting"); // starting | ready | validating | success | rejected | error
+  const [message, setMessage] = useState("Checking camera and meal window…");
+  const [errorState, setErrorState] = useState(null); // classified error for rejected state
+  const [result, setResult] = useState(null);
+
+  const resumeScanner = useCallback(() => {
+    setResult(null);
+    setErrorState(null);
+    processingRef.current = false;
+    try {
+      scannerRef.current?.resume();
+      setStatus("ready");
+      setMessage("Ready to scan next student");
+    } catch (error) {
+      console.warn("[MessScanner] resume failed", error);
+      setStatus("error");
+      setMessage("Scanner could not resume. Restart the camera.");
+    }
+  }, []);
+
+  const handleDecoded = useCallback(
+    async (decodedText) => {
+      const token = decodedText.trim();
+      const now = Date.now();
+      for (const [key, time] of recentRef.current) if (now - time > 30000) recentRef.current.delete(key);
+      if (!token || processingRef.current || recentRef.current.has(token)) return;
+
+      processingRef.current = true;
+      recentRef.current.set(token, now);
+      try {
+        scannerRef.current?.pause(true);
+      } catch (error) {
+        console.warn("[MessScanner] pause failed", error);
+      }
+
+      setStatus("validating");
+      setErrorState(null);
+      setMessage("Validating live QR and marking attendance…");
+      console.info("[MessScanner] QR decoded; validating with backend");
+
+      try {
+        const data = await apiRequest("/scanner/consume", {
+          method: "POST",
+          body: JSON.stringify({ token, meal: mealRef.current }),
+        });
+        setResult(data);
+        setStatus("success");
+        setMessage("Attendance marked");
+        playSuccessSound();
+        resumeTimerRef.current = setTimeout(resumeScanner, 4000);
+      } catch (error) {
+        console.error("[MessScanner] validation rejected", error);
+        const classified = classifyError(error);
+        setErrorState(classified);
+        setStatus("rejected");
+        setMessage(classified.title);
+        resumeTimerRef.current = setTimeout(resumeScanner, 2800);
+      }
+    },
+    [resumeScanner]
+  );
+
+  const startCamera = useCallback(
+    async (preferredId) => {
+      if (!mountedRef.current || startingRef.current || scannerRef.current?.isScanning) return;
+      if (!window.isSecureContext && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
+        setStatus("error");
+        setMessage("Camera access requires HTTPS or localhost.");
+        return;
+      }
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setStatus("error");
+        setMessage("This browser does not support camera access.");
+        return;
+      }
+      try {
+        startingRef.current = true;
+        setStatus("starting");
+        setMessage("Requesting camera permission…");
+        const found = await Html5Qrcode.getCameras();
+        if (!found.length) throw new Error("No camera was detected");
+        if (!mountedRef.current) return;
+
+        setCameras(found);
+        const rear = found.find((c) => /back|rear|environment/i.test(c.label));
+        const selected = preferredId || rear?.id || found[0].id;
+        setCameraId(selected);
+
+        const scanner = new Html5Qrcode(SCANNER_ID, false);
+        scannerRef.current = scanner;
+        await scanner.start(
+          selected,
+          {
+            fps: 10,
+            qrbox: (w, h) => {
+              const size = Math.floor(Math.min(w, h) * 0.72);
+              return { width: size, height: size };
+            },
+            aspectRatio: window.innerWidth < 640 ? 1 : 1.333,
+          },
+          handleDecoded,
+          () => {}
+        );
+        if (!mountedRef.current) {
+          await scanner.stop();
+          await scanner.clear();
+          if (scannerRef.current === scanner) scannerRef.current = null;
+          return;
+        } else {
+          setStatus("ready");
+          setMessage("Ready to scan live Mess QR");
+          console.info("[MessScanner] camera started", { camera: selected, meal: mealRef.current });
+        }
+      } catch (error) {
+        console.error("[MessScanner] camera start failed", error);
+        if (mountedRef.current) {
+          setStatus("error");
+          setMessage(
+            error?.name === "NotAllowedError"
+              ? "Camera permission denied. Allow camera access and try again."
+              : error.message || "Unable to start camera"
+          );
+        }
+      } finally {
+        startingRef.current = false;
+      }
+    },
+    [handleDecoded]
+  );
+
+  const restartCamera = useCallback(
+    async (id = cameraId) => {
+      if (startingRef.current) return;
+      clearTimeout(resumeTimerRef.current);
+      processingRef.current = false;
+      const old = scannerRef.current;
+      scannerRef.current = null;
+      if (old) {
+        try {
+          if (old.isScanning) await old.stop();
+          await old.clear();
+        } catch (error) {
+          console.warn("[MessScanner] cleanup before restart failed", error);
+        }
+      }
+      await startCamera(id);
+    },
+    [cameraId, startCamera]
+  );
+
+  useEffect(() => {
+    mountedRef.current = true;
+    apiRequest("/scanner/status")
+      .then((data) => {
+        if (!mountedRef.current) return;
+        mealRef.current = data.meal;
+        setMeal(data.meal);
+        if (!data.meal) {
+          setStatus("error");
+          setMessage("No meal scanning window is currently active");
+          return;
+        }
+        startCamera();
+      })
+      .catch((error) => {
+        console.error("[MessScanner] status request failed", error);
+        setStatus("error");
+        setMessage(error.message);
+      });
+
+    return () => {
+      mountedRef.current = false;
+      clearTimeout(resumeTimerRef.current);
+      const scanner = scannerRef.current;
+      scannerRef.current = null;
+      if (scanner) {
+        const cleanup = scanner.isScanning ? scanner.stop().then(() => scanner.clear()) : scanner.clear();
+        cleanup.catch((error) => console.warn("[MessScanner] camera cleanup failed", error));
+      }
+    };
+  }, [startCamera]);
+
+  const bannerTone = errorState ? TONE_CLASSES[errorState.tone] : status === "validating" ? TONE_CLASSES.blue : "border-blue-100 bg-blue-50 text-blue-700";
+  const BannerIcon = errorState?.icon;
+
+  return (
+    <div className="mx-auto w-full max-w-6xl space-y-4 px-3 pb-[env(safe-area-inset-bottom)] sm:space-y-5 sm:px-4 lg:px-0">
+      {/* Header */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div>
+          <h1 className="font-display text-xl font-semibold text-dark sm:text-2xl">Live Mess QR Scanner</h1>
+          <p className="text-sm text-slate-400">Camera validation and real-time meal attendance</p>
+        </div>
+        <div
+          className={`inline-flex w-fit items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold ${
+            status === "ready" ? "bg-green-50 text-green-700" : "bg-slate-100 text-slate-600"
+          }`}
+        >
+          {status === "ready" ? <Wifi size={15} /> : <WifiOff size={15} />} {meal || "Meal closed"}
+        </div>
+      </div>
+
+      {/* Success ID card replaces the scanner view */}
+      {result && <StudentSuccessCard result={result} />}
+
+      {/* Scanner + side panel — stacks on mobile/tablet, side-by-side on desktop */}
+      <div className={`${result ? "hidden" : "grid"} grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-[minmax(0,1fr)_320px]`}>
+        {/* Camera */}
+        <div className="overflow-hidden rounded-xl3 border border-slate-100 bg-slate-950 p-2 shadow-soft sm:p-3">
+          <div
+            id={SCANNER_ID}
+            className="mx-auto aspect-square w-full max-h-[70vh] overflow-hidden rounded-xl2 bg-black sm:aspect-[4/3] lg:aspect-square"
+          />
+        </div>
+
+        {/* Side panel */}
+        <aside className="rounded-xl3 border border-slate-100 bg-white p-4 shadow-soft sm:p-5">
+          <div className="flex items-center gap-2">
+            <Camera className="text-primary" size={20} />
+            <h2 className="font-semibold text-dark">Camera Scanner</h2>
+          </div>
+
+          <div
+            role="status"
+            aria-live="polite"
+            className={`mt-4 flex items-start gap-2 rounded-xl2 border p-3 text-sm ${bannerTone}`}
+          >
+            {BannerIcon && <BannerIcon size={16} className="mt-0.5 shrink-0" />}
+            <div>
+              <p className="font-semibold">{errorState ? errorState.title : message}</p>
+              {errorState && <p className="mt-0.5 text-xs opacity-80">{errorState.detail}</p>}
+            </div>
+          </div>
+
+          <label className="mt-5 block text-xs font-semibold text-slate-500">
+            Camera
+            <select
+              value={cameraId}
+              onChange={(e) => {
+                setCameraId(e.target.value);
+                restartCamera(e.target.value);
+              }}
+              className="mt-1.5 w-full rounded-xl2 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+            >
+              {cameras.map((camera, i) => (
+                <option key={camera.id} value={camera.id}>
+                  {camera.label || `Camera ${i + 1}`}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <button
+            onClick={() => restartCamera()}
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl2 bg-primary px-4 py-2.5 text-sm font-semibold text-white transition active:scale-[0.98]"
+          >
+            <RefreshCw size={15} />
+            Restart camera
+          </button>
+
+          <p className="mt-4 text-xs leading-relaxed text-slate-400">
+            Camera access works on HTTPS or localhost. The scanner pauses during validation and resumes automatically
+            after each result.
+          </p>
+        </aside>
+      </div>
+    </div>
+  );
+}
