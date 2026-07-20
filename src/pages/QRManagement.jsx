@@ -1,12 +1,16 @@
 import { Clock3, QrCode, ShieldCheck, Smartphone } from "lucide-react";
 import { useApp } from "../context/AppContext";
+import { useEffect, useState } from "react";
+import { apiRequest } from "../lib/api";
 import DynamicStudentQR from "../components/DynamicStudentQR";
 import { students } from "../data/mockData";
 
 export default function QRManagement() {
   const { role, currentStudentId } = useApp();
+  const [backendStudent,setBackendStudent]=useState(null);
+  useEffect(()=>{if(role==="student")apiRequest("/student/me").then(setBackendStudent).catch((error)=>console.error("[StudentQR] profile failed",error));},[role]);
   if (role === "student") {
-    const student = students.find((item) => item.id === currentStudentId);
+    const student = backendStudent || students.find((item) => item.id === currentStudentId);
     if (!student) return <div className="rounded-xl3 bg-white p-8 text-center text-sm text-slate-500 shadow-soft">No student record is linked to this account.</div>;
     return <div className="space-y-6"><DynamicStudentQR student={student} /><div className="rounded-xl3 bg-white p-6 shadow-soft"><h2 className="font-display font-semibold text-dark">Safe QR usage</h2><p className="mt-2 text-sm text-slate-500">Keep this page open and present the current live code. There is no downloadable or permanent student QR.</p></div></div>;
   }

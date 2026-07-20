@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Users, CheckCircle2, Coffee, UtensilsCrossed, Moon, UserX, Wifi,
@@ -18,14 +19,39 @@ import {
   attendanceHistory, notifications, students, paymentAnalytics, getStudentPaymentSummary,
 } from "../data/mockData";
 import { useApp } from "../context/AppContext";
+import { apiRequest } from "../lib/api";
 
 export default function Dashboard() {
   const { clock, role, currentMeal, currentStudentId } = useApp();
+  const [backendStudent, setBackendStudent] = useState(null);
+  const [backendPayment, setBackendPayment] = useState(null);
+  useEffect(() => {
+    if (role !== "student") return;
+    Promise.all([apiRequest("/student/me"), apiRequest("/payments/me")])
+      .then(([studentData, paymentData]) => {
+        setBackendStudent({
+          ...studentData,
+          photo: studentData.photo_url,
+          rollNumber: studentData.admission_number,
+          regNumber: studentData.registration_number,
+          room: studentData.room_number,
+          year: [studentData.academic_year, studentData.semester].filter(Boolean).join(" / "),
+          attendancePercent: 0,
+          qrIssued: true,
+        });
+        setBackendPayment({
+          current: paymentData.current,
+          nextDueDate: paymentData.current?.due_date,
+          totalOutstanding: paymentData.summary?.totalOutstanding || 0,
+        });
+      })
+      .catch((error) => console.error("[StudentDashboard] backend data failed", error));
+  }, [role]);
   const hour = clock.getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-  const student = students.find((item) => item.id === currentStudentId) || null;
+  const student = backendStudent || students.find((item) => item.id === currentStudentId) || null;
   const studentAttendance = student ? attendanceHistory.filter((item) => item.studentId === student.id).slice(0, 5) : [];
-  const studentPayment = student ? getStudentPaymentSummary(student.id) : null;
+  const studentPayment = backendPayment || (student ? getStudentPaymentSummary(student.id) : null);
   const basePath = role === "super-admin" ? "/super-admin" : role === "student" ? "/student" : "/admin";
 
   if (role === "super-admin") {
@@ -194,7 +220,7 @@ export default function Dashboard() {
               <div>
                 <p className="text-xs text-slate-400">Upcoming Due Date</p>
                 <p className="font-display text-xl font-semibold text-dark mt-1">
-                  {new Date(studentPayment.nextDueDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
+                  {studentPayment.nextDueDate ? new Date(studentPayment.nextDueDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—"}
                 </p>
               </div>
               <CalendarDays className="text-sky-600" size={22} />
