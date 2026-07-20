@@ -482,24 +482,51 @@ export default function LiveScanner() {
             </div>
           </div>
 
-          <label className="mt-5 block text-xs font-semibold text-slate-500">
-            Scanner device
-            <select
-              value={deviceMode === "hardware" ? "hardware" : cameraId}
-              onChange={(e) => {
-                if (e.target.value === "hardware") activateHardwareScanner();
-                else selectCamera(e.target.value);
-              }}
-              className="mt-1.5 w-full rounded-xl2 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
-            >
-              <option value="hardware">USB/Bluetooth QR Scanner</option>
-              {cameras.map((camera, i) => (
-                <option key={camera.id} value={camera.id}>
-                  {camera.label || `Camera ${i + 1}`}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="mt-5">
+            <p className="text-xs font-semibold text-slate-500">Scanner device</p>
+            <div className="mt-1.5 grid grid-cols-2 gap-2" role="group" aria-label="Scanner device">
+              <button
+                type="button"
+                onClick={() => selectCamera(cameraId)}
+                className={`flex min-h-11 items-center justify-center gap-2 rounded-xl2 border px-2 py-2 text-xs font-semibold transition ${
+                  deviceMode === "camera"
+                    ? "border-primary bg-primary text-white"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-primary/40"
+                }`}
+              >
+                <Camera size={16} /> Camera
+              </button>
+              <button
+                type="button"
+                onClick={activateHardwareScanner}
+                className={`flex min-h-11 items-center justify-center gap-2 rounded-xl2 border px-2 py-2 text-xs font-semibold transition ${
+                  deviceMode === "hardware"
+                    ? "border-primary bg-primary text-white"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-primary/40"
+                }`}
+              >
+                <ScanBarcode size={16} /> USB Scanner
+              </button>
+            </div>
+          </div>
+
+          {deviceMode === "camera" && (
+            <label className="mt-4 block text-xs font-semibold text-slate-500">
+              Camera source
+              <select
+                value={cameraId}
+                onChange={(event) => selectCamera(event.target.value)}
+                className="mt-1.5 w-full rounded-xl2 border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              >
+                {!cameras.length && <option value="">Detecting cameras...</option>}
+                {cameras.map((camera, index) => (
+                  <option key={camera.id} value={camera.id}>
+                    {camera.label || `Camera ${index + 1}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <button
             onClick={() => deviceMode === "hardware" ? hardwareInputRef.current?.focus() : restartCamera()}
