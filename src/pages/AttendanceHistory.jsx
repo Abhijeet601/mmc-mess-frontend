@@ -1,39 +1,60 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { FileSpreadsheet, FileText, Printer, Download } from "lucide-react";
 import Table from "../components/Table";
 import SearchBar from "../components/SearchBar";
 import Pagination from "../components/Pagination";
 import StatusBadge from "../components/StatusBadge";
 import EmptyState from "../components/EmptyState";
-import { attendanceHistory, HOSTEL_LIST, MEAL_LIST } from "../data/mockData";
+import { HOSTEL_LIST, MEAL_LIST } from "../data/mockData";
 import toast from "react-hot-toast";
 import { useApp } from "../context/AppContext";
+import { apiRequest } from "../lib/api";
 
 const PAGE_SIZE = 12;
 
 export default function AttendanceHistory() {
-  const { role, currentStudentId } = useApp();
+  const { role } = useApp();
   const [query, setQuery] = useState("");
   const [meal, setMeal] = useState("All");
   const [hostel, setHostel] = useState("All");
   const [dateFilter, setDateFilter] = useState("");
   const [page, setPage] = useState(1);
+  const [records, setRecords] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = useMemo(() => {
-    const source = role === "student"
-      ? attendanceHistory.filter((a) => a.studentId === currentStudentId)
-      : attendanceHistory;
-    return source.filter((a) => {
-      const q = !query || a.name.toLowerCase().includes(query.toLowerCase()) || a.rollNumber.toLowerCase().includes(query.toLowerCase());
-      const m = meal === "All" || a.meal === meal;
-      const h = role === "student" || hostel === "All" || a.hostel === hostel;
-      const d = !dateFilter || a.date.startsWith(dateFilter);
-      return q && m && h && d;
-    });
-  }, [query, meal, hostel, dateFilter, role, currentStudentId]);
+  useEffect(() => {
+    let active = true;
+    const params = new URLSearchParams({ page: String(page), page_size: String(PAGE_SIZE) });
+    if (query.trim() && role !== "student") params.set("search", query.trim());
+    if (meal !== "All") params.set("meal", meal);
+    if (hostel !== "All" && role !== "student") params.set("hostel", hostel);
+    if (dateFilter) params.set("date", dateFilter);
+    setLoading(true);
+    apiRequest(`/attendance?${params.toString()}`)
+      .then((data) => {
+        if (!active) return;
+        setRecords((data.records || []).map((item) => ({
+          ...item,
+          date: item.scanned_at,
+          rollNumber: item.registration_number,
+          photo: item.photo_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(item.name)}`,
+          status: "Present",
+        })));
+        setTotal(Number(data.total || 0));
+      })
+      .catch((error) => {
+        if (!active) return;
+        setRecords([]);
+        setTotal(0);
+        toast.error(error.message);
+      })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [query, meal, hostel, dateFilter, page, role]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pageItems = records;
 
   const exportAs = (type) => toast.success(`Exporting attendance as ${type}...`);
 
@@ -42,7 +63,7 @@ export default function AttendanceHistory() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="font-display text-2xl font-semibold text-dark">{role === "student" ? "My Attendance" : "Attendance History"}</h1>
-          <p className="text-slate-400 text-sm mt-1">{filtered.length.toLocaleString("en-IN")} records found</p>
+          <p className="text-slate-400 text-sm mt-1">{total.toLocaleString("en-IN")} records found</p>
         </div>
         {role !== "student" ? <div className="flex gap-2 flex-wrap">
           <button onClick={() => exportAs("Excel")} className="flex items-center gap-1.5 bg-green-50 text-success text-xs font-semibold px-3 py-2 rounded-xl2"><FileSpreadsheet size={14} /> Excel</button>
@@ -67,7 +88,7 @@ export default function AttendanceHistory() {
 
       <div className="card-surface rounded-xl3 p-4 shadow-soft">
         {pageItems.length === 0 ? (
-          <EmptyState title="No attendance records" description="Adjust your filters to see results." />
+          <EmptyState title={loading ? "Loading attendance" : "No attendance records"} description={loading ? "Fetching live attendance data..." : "Adjust your filters to see results."} />
         ) : (
           <>
             <Table columns={["Photo", "Name", "Roll No.", "Hostel", "Meal", "Date", "Time", "Status"]}>
@@ -87,7 +108,7 @@ export default function AttendanceHistory() {
                 );
               })}
             </Table>
-            <Pagination page={page} totalPages={totalPages} onChange={setPage} total={filtered.length} pageSize={PAGE_SIZE} />
+            <Pagination page={page} totalPages={totalPages} onChange={setPage} total={total} pageSize={PAGE_SIZE} />
           </>
         )}
       </div>
