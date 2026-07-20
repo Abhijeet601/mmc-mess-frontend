@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock,
   RefreshCw,
+  ScanBarcode,
   ShieldAlert,
   ShieldCheck,
   University,
@@ -174,9 +175,13 @@ export default function LiveScanner() {
   const resumeTimerRef = useRef(null);
   const mealRef = useRef(null);
   const startingRef = useRef(false);
+  const hardwareInputRef = useRef(null);
+  const deviceModeRef = useRef("camera");
 
   const [cameras, setCameras] = useState([]);
   const [cameraId, setCameraId] = useState("");
+  const [deviceMode, setDeviceMode] = useState("camera");
+  const [hardwareValue, setHardwareValue] = useState("");
   const [meal, setMeal] = useState(null);
   const [status, setStatus] = useState("starting"); // starting | ready | validating | success | rejected | error
   const [message, setMessage] = useState("Checking camera and meal window…");
@@ -191,6 +196,9 @@ export default function LiveScanner() {
       scannerRef.current?.resume();
       setStatus("ready");
       setMessage("Ready to scan next student");
+      if (deviceModeRef.current === "hardware") {
+        setTimeout(() => hardwareInputRef.current?.focus(), 0);
+      }
     } catch (error) {
       console.warn("[MessScanner] resume failed", error);
       setStatus("error");
@@ -328,6 +336,48 @@ export default function LiveScanner() {
     [cameraId, startCamera]
   );
 
+  const activateHardwareScanner = useCallback(async () => {
+    clearTimeout(resumeTimerRef.current);
+    processingRef.current = false;
+    const old = scannerRef.current;
+    scannerRef.current = null;
+    if (old) {
+      try {
+        if (old.isScanning) await old.stop();
+        await old.clear();
+      } catch (error) {
+        console.warn("[MessScanner] camera cleanup for hardware scanner failed", error);
+      }
+    }
+    deviceModeRef.current = "hardware";
+    setDeviceMode("hardware");
+    setHardwareValue("");
+    setStatus("ready");
+    setMessage("USB/Bluetooth scanner ready");
+    setTimeout(() => hardwareInputRef.current?.focus(), 0);
+  }, []);
+
+  const selectCamera = useCallback(
+    async (id) => {
+      deviceModeRef.current = "camera";
+      setDeviceMode("camera");
+      setCameraId(id);
+      await restartCamera(id);
+    },
+    [restartCamera]
+  );
+
+  const submitHardwareScan = useCallback(
+    (event) => {
+      event.preventDefault();
+      const value = hardwareValue.trim();
+      if (!value) return;
+      setHardwareValue("");
+      handleDecoded(value);
+    },
+    [handleDecoded, hardwareValue]
+  );
+
   useEffect(() => {
     mountedRef.current = true;
     apiRequest("/scanner/status")
@@ -386,18 +436,38 @@ export default function LiveScanner() {
       {/* Scanner + side panel — stacks on mobile/tablet, side-by-side on desktop */}
       <div className={`${result ? "hidden" : "grid"} grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-[minmax(0,1fr)_320px]`}>
         {/* Camera */}
-        <div className="overflow-hidden rounded-xl3 border border-slate-100 bg-slate-950 p-2 shadow-soft sm:p-3">
+        <div className={`overflow-hidden rounded-xl3 border border-slate-100 p-2 shadow-soft sm:p-3 ${deviceMode === "hardware" ? "bg-white" : "bg-slate-950"}`}>
           <div
             id={SCANNER_ID}
-            className="mx-auto aspect-square w-full max-h-[70vh] overflow-hidden rounded-xl2 bg-black sm:aspect-[4/3] lg:aspect-square"
+            className={`${deviceMode === "hardware" ? "hidden" : "block"} mx-auto aspect-square w-full max-h-[70vh] overflow-hidden rounded-xl2 bg-black sm:aspect-[4/3] lg:aspect-square`}
           />
+          {deviceMode === "hardware" && (
+            <form onSubmit={submitHardwareScan} className="flex min-h-[360px] flex-col items-center justify-center px-4 text-center">
+              <ScanBarcode size={54} className="text-primary" />
+              <h2 className="mt-4 font-display text-xl font-semibold text-dark">USB/Bluetooth Scanner</h2>
+              <input
+                ref={hardwareInputRef}
+                value={hardwareValue}
+                onChange={(event) => setHardwareValue(event.target.value)}
+                onBlur={() => setTimeout(() => hardwareInputRef.current?.focus(), 0)}
+                autoFocus
+                autoComplete="off"
+                aria-label="Hardware scanner input"
+                className="mt-5 w-full max-w-md rounded-xl2 border border-slate-200 bg-slate-50 px-4 py-3 text-center text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                placeholder="Scan student QR"
+              />
+              <button type="submit" className="mt-3 rounded-xl2 bg-primary px-5 py-2.5 text-sm font-semibold text-white">
+                Submit scan
+              </button>
+            </form>
+          )}
         </div>
 
         {/* Side panel */}
         <aside className="rounded-xl3 border border-slate-100 bg-white p-4 shadow-soft sm:p-5">
           <div className="flex items-center gap-2">
-            <Camera className="text-primary" size={20} />
-            <h2 className="font-semibold text-dark">Camera Scanner</h2>
+            {deviceMode === "hardware" ? <ScanBarcode className="text-primary" size={20} /> : <Camera className="text-primary" size={20} />}
+            <h2 className="font-semibold text-dark">{deviceMode === "hardware" ? "Hardware Scanner" : "Camera Scanner"}</h2>
           </div>
 
           <div
@@ -413,15 +483,16 @@ export default function LiveScanner() {
           </div>
 
           <label className="mt-5 block text-xs font-semibold text-slate-500">
-            Camera
+            Scanner device
             <select
-              value={cameraId}
+              value={deviceMode === "hardware" ? "hardware" : cameraId}
               onChange={(e) => {
-                setCameraId(e.target.value);
-                restartCamera(e.target.value);
+                if (e.target.value === "hardware") activateHardwareScanner();
+                else selectCamera(e.target.value);
               }}
               className="mt-1.5 w-full rounded-xl2 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
             >
+              <option value="hardware">USB/Bluetooth QR Scanner</option>
               {cameras.map((camera, i) => (
                 <option key={camera.id} value={camera.id}>
                   {camera.label || `Camera ${i + 1}`}
@@ -431,16 +502,17 @@ export default function LiveScanner() {
           </label>
 
           <button
-            onClick={() => restartCamera()}
+            onClick={() => deviceMode === "hardware" ? hardwareInputRef.current?.focus() : restartCamera()}
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl2 bg-primary px-4 py-2.5 text-sm font-semibold text-white transition active:scale-[0.98]"
           >
             <RefreshCw size={15} />
-            Restart camera
+            {deviceMode === "hardware" ? "Focus scanner input" : "Restart camera"}
           </button>
 
           <p className="mt-4 text-xs leading-relaxed text-slate-400">
-            Camera access works on HTTPS or localhost. The scanner pauses during validation and resumes automatically
-            after each result.
+            {deviceMode === "hardware"
+              ? "Connect the scanner in keyboard mode. Its scan is submitted automatically when the device sends Enter."
+              : "Camera access works on HTTPS or localhost. The scanner pauses during validation and resumes automatically after each result."}
           </p>
         </aside>
       </div>
