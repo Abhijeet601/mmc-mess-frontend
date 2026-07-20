@@ -6,7 +6,7 @@ const configuredApiUrl = (import.meta.env.VITE_API_BASE_URL || DEFAULT_API_URL).
 const API_BASE_URL = configuredApiUrl.endsWith("/api") ? configuredApiUrl : `${configuredApiUrl}/api`;
 
 function getToken() {
-  return localStorage.getItem("mess_api_token");
+  return sessionStorage.getItem("mess_api_token");
 }
 
 export async function apiRequest(path, options = {}) {
@@ -33,21 +33,24 @@ export async function apiRequest(path, options = {}) {
 }
 
 export function saveSession({ token, role, user }) {
-  localStorage.setItem("mess_api_token", token);
-  localStorage.setItem("mess_api_role", role);
-  localStorage.setItem("mess_api_user", JSON.stringify(user));
-}
-
-export function clearSession() {
+  sessionStorage.setItem("mess_api_token", token);
+  sessionStorage.setItem("mess_api_role", role);
+  sessionStorage.setItem("mess_api_user", JSON.stringify(user));
   localStorage.removeItem("mess_api_token");
   localStorage.removeItem("mess_api_role");
   localStorage.removeItem("mess_api_user");
 }
 
+export function clearSession() {
+  sessionStorage.removeItem("mess_api_token");
+  sessionStorage.removeItem("mess_api_role");
+  sessionStorage.removeItem("mess_api_user");
+}
+
 export function loadSession() {
-  const token = localStorage.getItem("mess_api_token");
-  const role = localStorage.getItem("mess_api_role");
-  const userRaw = localStorage.getItem("mess_api_user");
+  const token = sessionStorage.getItem("mess_api_token");
+  const role = sessionStorage.getItem("mess_api_role");
+  const userRaw = sessionStorage.getItem("mess_api_user");
   if (!token || !role || !userRaw) return null;
   try {
     return { token, role, user: JSON.parse(userRaw) };

@@ -176,11 +176,11 @@ export default function LiveScanner() {
   const mealRef = useRef(null);
   const startingRef = useRef(false);
   const hardwareInputRef = useRef(null);
-  const deviceModeRef = useRef("camera");
+  const deviceModeRef = useRef("hardware");
 
   const [cameras, setCameras] = useState([]);
   const [cameraId, setCameraId] = useState("");
-  const [deviceMode, setDeviceMode] = useState("camera");
+  const [deviceMode, setDeviceMode] = useState("hardware");
   const [hardwareValue, setHardwareValue] = useState("");
   const [meal, setMeal] = useState(null);
   const [status, setStatus] = useState("starting"); // starting | ready | validating | success | rejected | error
@@ -390,7 +390,7 @@ export default function LiveScanner() {
           setMessage("No meal scanning window is currently active");
           return;
         }
-        startCamera();
+        activateHardwareScanner();
       })
       .catch((error) => {
         console.error("[MessScanner] status request failed", error);
@@ -408,7 +408,7 @@ export default function LiveScanner() {
         cleanup.catch((error) => console.warn("[MessScanner] camera cleanup failed", error));
       }
     };
-  }, [startCamera]);
+  }, [activateHardwareScanner]);
 
   const bannerTone = errorState ? TONE_CLASSES[errorState.tone] : status === "validating" ? TONE_CLASSES.blue : "border-blue-100 bg-blue-50 text-blue-700";
   const BannerIcon = errorState?.icon;
