@@ -15,16 +15,20 @@ import NotificationCard from "../components/NotificationCard";
 import DynamicStudentQR from "../components/DynamicStudentQR";
 import MealMenuSummary from "../components/MealMenuSummary";
 import {
-  dashboardStats, weeklyAttendanceTrend, mealDistribution, hostelDistribution,
-  attendanceHistory, notifications, students, paymentAnalytics, getStudentPaymentSummary,
+  dashboardStats as mockDashboardStats, weeklyAttendanceTrend as mockWeeklyAttendanceTrend,
+  mealDistribution as mockMealDistribution, hostelDistribution as mockHostelDistribution,
+  attendanceHistory as mockAttendanceHistory, notifications, students,
+  paymentAnalytics as mockPaymentAnalytics, getStudentPaymentSummary,
 } from "../data/mockData";
 import { useApp } from "../context/AppContext";
 import { apiRequest } from "../lib/api";
 
 export default function Dashboard() {
-  const { clock, role, currentMeal, currentStudentId } = useApp();
+  const { clock, role, currentMeal, currentStudentId, currentUser } = useApp();
   const [backendStudent, setBackendStudent] = useState(null);
   const [backendPayment, setBackendPayment] = useState(null);
+  const [adminDashboard, setAdminDashboard] = useState(null);
+  const [adminPaymentAnalytics, setAdminPaymentAnalytics] = useState(null);
   useEffect(() => {
     if (role !== "student") return;
     Promise.all([apiRequest("/student/me"), apiRequest("/payments/me")])
@@ -47,11 +51,31 @@ export default function Dashboard() {
       })
       .catch((error) => console.error("[StudentDashboard] backend data failed", error));
   }, [role]);
+  useEffect(() => {
+    if (role !== "admin" && role !== "super-admin") return;
+    Promise.all([apiRequest("/admin/dashboard"), apiRequest("/admin/analytics")])
+      .then(([dashboardData, paymentData]) => {
+        setAdminDashboard(dashboardData);
+        setAdminPaymentAnalytics(paymentData);
+      })
+      .catch((error) => console.error("[AdminDashboard] live data failed", error));
+  }, [role]);
   const hour = clock.getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const student = backendStudent || students.find((item) => item.id === currentStudentId) || null;
-  const studentAttendance = student ? attendanceHistory.filter((item) => item.studentId === student.id).slice(0, 5) : [];
+  const studentAttendance = student ? mockAttendanceHistory.filter((item) => item.studentId === student.id).slice(0, 5) : [];
   const studentPayment = backendPayment || (student ? getStudentPaymentSummary(student.id) : null);
+  const dashboardStats = adminDashboard?.stats || mockDashboardStats;
+  const weeklyAttendanceTrend = adminDashboard?.weeklyAttendance || mockWeeklyAttendanceTrend;
+  const mealDistribution = adminDashboard?.mealDistribution || mockMealDistribution;
+  const hostelDistribution = adminDashboard?.hostelDistribution || mockHostelDistribution;
+  const attendanceHistory = (adminDashboard?.recentAttendance || []).map((item) => ({
+    ...item,
+    date: item.scanned_at,
+    rollNumber: item.registration_number,
+    photo: item.photo_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(item.name)}`,
+  }));
+  const paymentAnalytics = adminPaymentAnalytics || mockPaymentAnalytics;
   const basePath = role === "super-admin" ? "/super-admin" : role === "student" ? "/student" : "/admin";
 
   if (role === "super-admin") {
@@ -65,7 +89,7 @@ export default function Dashboard() {
           <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-white to-cyan-50" />
           <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div>
-              <p className="text-blue-600 text-sm font-semibold">{greeting}, Dr. Ananya Rao</p>
+              <p className="text-blue-600 text-sm font-semibold">{greeting}, {currentUser?.name || "Super Admin"}</p>
               <h1 className="font-display text-3xl md:text-4xl font-semibold mt-2 text-dark">Magadh Mahila College Mess Command Center</h1>
               <p className="text-slate-500 mt-3 max-w-2xl">
                 Executive overview across Vaidehi Hostel and Mahila Hostel, QR security, live attendance, scanner health, and audit activity.
@@ -75,8 +99,8 @@ export default function Dashboard() {
               {[
                 ["System Health", "99.98%"],
                 ["Live Scanners", "12/12"],
-                ["Admins", "30"],
-                ["Hostels", "2"],
+                ["Admins", dashboardStats.totalAdmins],
+                ["Hostels", hostelDistribution.length],
               ].map(([label, value]) => (
                 <div key={label} className="rounded-xl2 bg-white/80 border border-blue-100 p-4 shadow-soft">
                   <p className="text-xs text-slate-500">{label}</p>
@@ -94,11 +118,11 @@ export default function Dashboard() {
             ["Breakfast", dashboardStats.breakfast, Coffee],
             ["Lunch", dashboardStats.lunch, UtensilsCrossed],
             ["Dinner", dashboardStats.dinner, Moon],
-            ["Total Hostels", 2, Wifi],
-            ["Total Admins", 30, ShieldCheck],
-            ["Scanner Status", 12, Wifi],
-            ["Live Attendance", 83, CalendarDays],
-            ["System Alerts", 2, Bell],
+            ["Total Hostels", hostelDistribution.length, Wifi],
+            ["Total Admins", dashboardStats.totalAdmins, ShieldCheck],
+            ["Scanner Status", 1, Wifi],
+            ["Live Attendance", dashboardStats.todayAttendance, CalendarDays],
+            ["System Alerts", 0, Bell],
           ].map(([label, value, Icon]) => (
             <div key={label} className="rounded-xl3 bg-white border border-blue-100 p-4 shadow-soft">
               <div className="w-10 h-10 rounded-xl2 bg-blue-50 text-blue-600 flex items-center justify-center">
@@ -301,7 +325,7 @@ export default function Dashboard() {
         <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-white to-cyan-50" />
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
-            <p className="text-primary text-sm font-medium">{greeting}, Admin Priya</p>
+            <p className="text-primary text-sm font-medium">{greeting}, {currentUser?.name || "Mess Admin"}</p>
             <h1 className="font-display text-2xl md:text-3xl font-semibold mt-1">
               {dashboardStats.todayAttendance} students checked in today
             </h1>
