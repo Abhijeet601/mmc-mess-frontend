@@ -395,7 +395,16 @@ function ScannerHeader({ meal, online }) {
               Live Mess Scanner
             </h1>
             <p className="text-xs font-medium uppercase tracking-[0.14em] text-cyan-700 sm:text-[13px]">
-              AI Powered Attendance Verification
+              Developed by{" "}
+              <a
+                href="https://ards.in"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-colors hover:text-blue-700 hover:underline"
+              >
+                Alpenrose Digital Solutions
+              </a>{" "}
+              for Magadh Mahila College Mess
             </p>
           </div>
         </div>
