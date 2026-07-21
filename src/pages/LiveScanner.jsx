@@ -118,14 +118,15 @@ function StudentSuccessCard({ result }) {
   ];
 
   return (
-    <div className="animate-pulse-once rounded-xl3 border-2 border-green-400 bg-gradient-to-br from-green-50 via-white to-emerald-50 p-4 shadow-[0_0_35px_rgba(34,197,94,.28)] sm:p-5">
+    <div className="animate-pill-pop overflow-hidden rounded-xl3 border border-emerald-200 bg-white p-4 shadow-[0_20px_55px_rgba(16,185,129,.16)] sm:p-5">
       <div className="flex flex-col items-center justify-center gap-2 text-center text-green-700 sm:flex-row sm:gap-3">
         <CheckCircle2 size={30} className="shrink-0 sm:size-[34px]" />
         <h2 className="font-display text-xl font-semibold sm:text-2xl">Attendance Marked Successfully</h2>
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-xl3 border border-green-200 bg-white shadow-floating sm:mt-5">
-        <div className="flex items-center justify-between gap-2 bg-gradient-to-r from-blue-700 to-cyan-600 px-4 py-3 text-white sm:px-5">
+      <div className="relative mt-4 overflow-hidden rounded-xl3 border border-emerald-100 bg-white shadow-soft sm:mt-5">
+        <div className="pointer-events-none absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-emerald-50/70 to-transparent" />
+        <div className="relative flex items-center justify-between gap-2 bg-gradient-to-r from-blue-700 to-cyan-600 px-4 py-3 text-white sm:px-5">
           <div className="flex min-w-0 items-center gap-2">
             <University size={22} className="shrink-0 sm:size-[24px]" />
             <div className="min-w-0">
@@ -136,12 +137,12 @@ function StudentSuccessCard({ result }) {
           <ShieldCheck size={26} className="shrink-0 sm:size-[28px]" />
         </div>
 
-        <div className="grid grid-cols-1 gap-5 p-4 sm:p-5 sm:grid-cols-[130px_1fr] md:grid-cols-[160px_1fr]">
+        <div className="relative grid grid-cols-1 gap-5 p-4 sm:p-5 sm:grid-cols-[130px_1fr] md:grid-cols-[160px_1fr]">
           <div className="mx-auto text-center sm:mx-0">
             <img
               src={s.photo_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(s.name)}`}
               alt={s.name}
-              className="mx-auto h-32 w-32 rounded-xl2 border-4 border-green-100 object-cover sm:h-40 sm:w-36"
+              className="mx-auto h-32 w-32 rounded-xl2 border-4 border-white object-cover shadow-[0_0_0_3px_rgba(52,211,153,.22),0_12px_28px_rgba(15,23,42,.14)] sm:h-40 sm:w-36"
             />
             <div className="mt-3 rounded-full bg-green-100 px-3 py-1 text-sm font-bold text-green-700">MARKED</div>
           </div>
@@ -414,16 +415,17 @@ export default function LiveScanner() {
   const BannerIcon = errorState?.icon;
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-4 px-3 pb-[env(safe-area-inset-bottom)] sm:space-y-5 sm:px-4 lg:px-0">
+    <div className="relative mx-auto w-full max-w-6xl space-y-4 overflow-hidden rounded-xl3 border border-sky-100 bg-[linear-gradient(rgba(14,165,233,.035)_1px,transparent_1px),linear-gradient(90deg,rgba(14,165,233,.035)_1px,transparent_1px)] bg-[size:28px_28px] p-3 pb-[max(12px,env(safe-area-inset-bottom))] shadow-soft sm:space-y-5 sm:p-5 lg:p-6">
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-xl3 border border-white bg-white/90 p-4 shadow-soft backdrop-blur-sm sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div>
+          <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-sky-100 bg-sky-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-sky-700"><ShieldCheck size={12} /> Secure attendance terminal</div>
           <h1 className="font-display text-xl font-semibold text-dark sm:text-2xl">Live Mess QR Scanner</h1>
-          <p className="text-sm text-slate-400">Camera validation and real-time meal attendance</p>
+          <p className="text-sm text-slate-500">Camera and hardware validation with real-time attendance</p>
         </div>
         <div
           className={`inline-flex w-fit items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold ${
-            status === "ready" ? "bg-green-50 text-green-700" : "bg-slate-100 text-slate-600"
+            status === "ready" ? "border border-emerald-200 bg-emerald-50 text-emerald-700 shadow-[0_0_0_4px_rgba(16,185,129,.06)]" : "border border-slate-200 bg-slate-50 text-slate-600"
           }`}
         >
           {status === "ready" ? <Wifi size={15} /> : <WifiOff size={15} />} {meal || "Meal closed"}
@@ -436,15 +438,19 @@ export default function LiveScanner() {
       {/* Scanner + side panel — stacks on mobile/tablet, side-by-side on desktop */}
       <div className={`${result ? "hidden" : "grid"} grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-[minmax(0,1fr)_320px]`}>
         {/* Camera */}
-        <div className={`overflow-hidden rounded-xl3 border border-slate-100 p-2 shadow-soft sm:p-3 ${deviceMode === "hardware" ? "bg-white" : "bg-slate-950"}`}>
+        <div className={`relative overflow-hidden rounded-xl3 border bg-white p-2 shadow-[0_18px_50px_rgba(14,116,144,.12)] sm:p-3 ${deviceMode === "hardware" ? "border-sky-100" : "animate-frame-pulse border-cyan-200"}`}>
           <div
             id={SCANNER_ID}
-            className={`${deviceMode === "hardware" ? "hidden" : "block"} mx-auto aspect-square w-full max-h-[70vh] overflow-hidden rounded-xl2 bg-black sm:aspect-[4/3] lg:aspect-square`}
+            className={`${deviceMode === "hardware" ? "hidden" : "block"} mx-auto aspect-square w-full max-h-[70vh] overflow-hidden rounded-xl2 border border-sky-100 bg-sky-50 sm:aspect-[4/3] lg:aspect-square`}
           />
+          {deviceMode === "camera" && status === "ready" && <div className="pointer-events-none absolute inset-x-8 top-4 h-0.5 animate-laser bg-gradient-to-r from-transparent via-cyan-300 to-transparent shadow-[0_0_14px_3px_rgba(34,211,238,.75)]" />}
+          {deviceMode === "camera" && ["left-5 top-5 border-l-4 border-t-4", "right-5 top-5 border-r-4 border-t-4", "bottom-5 left-5 border-b-4 border-l-4", "bottom-5 right-5 border-b-4 border-r-4"].map((position) => <span key={position} className={`pointer-events-none absolute h-9 w-9 animate-corner-glow border-cyan-300 ${position}`} />)}
           {deviceMode === "hardware" && (
-            <form onSubmit={submitHardwareScan} className="flex min-h-[360px] flex-col items-center justify-center px-4 text-center">
-              <ScanBarcode size={54} className="text-primary" />
+            <form onSubmit={submitHardwareScan} className="relative flex min-h-[360px] flex-col items-center justify-center overflow-hidden rounded-xl2 border border-sky-100 bg-gradient-to-b from-sky-50/80 to-white px-4 text-center">
+              <span className="absolute h-40 w-40 animate-ripple rounded-full border border-sky-200" />
+              <span className="relative grid h-20 w-20 place-items-center rounded-xl3 border border-sky-200 bg-white text-primary shadow-[0_14px_35px_rgba(37,99,235,.14)]"><ScanBarcode size={42} className="animate-float-icon" /></span>
               <h2 className="mt-4 font-display text-xl font-semibold text-dark">USB/Bluetooth Scanner</h2>
+              <p className="mt-1 text-xs text-slate-500">Scanner input is active and ready</p>
               <input
                 ref={hardwareInputRef}
                 value={hardwareValue}
@@ -453,10 +459,10 @@ export default function LiveScanner() {
                 autoFocus
                 autoComplete="off"
                 aria-label="Hardware scanner input"
-                className="mt-5 w-full max-w-md rounded-xl2 border border-slate-200 bg-slate-50 px-4 py-3 text-center text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                className="relative mt-5 w-full max-w-md rounded-xl2 border border-sky-200 bg-white px-4 py-3 text-center text-sm shadow-inner outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
                 placeholder="Scan student QR"
               />
-              <button type="submit" className="mt-3 rounded-xl2 bg-primary px-5 py-2.5 text-sm font-semibold text-white">
+              <button type="submit" className="relative mt-3 rounded-xl2 bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(37,99,235,.22)] transition hover:bg-primary-600 active:scale-[0.98]">
                 Submit scan
               </button>
             </form>
@@ -464,7 +470,7 @@ export default function LiveScanner() {
         </div>
 
         {/* Side panel */}
-        <aside className="rounded-xl3 border border-slate-100 bg-white p-4 shadow-soft sm:p-5">
+        <aside className="rounded-xl3 border border-sky-100 bg-white/95 p-4 shadow-[0_18px_50px_rgba(15,23,42,.08)] backdrop-blur-sm sm:p-5">
           <div className="flex items-center gap-2">
             {deviceMode === "hardware" ? <ScanBarcode className="text-primary" size={20} /> : <Camera className="text-primary" size={20} />}
             <h2 className="font-semibold text-dark">{deviceMode === "hardware" ? "Hardware Scanner" : "Camera Scanner"}</h2>
@@ -473,7 +479,7 @@ export default function LiveScanner() {
           <div
             role="status"
             aria-live="polite"
-            className={`mt-4 flex items-start gap-2 rounded-xl2 border p-3 text-sm ${bannerTone}`}
+            className={`mt-4 flex items-start gap-2 rounded-xl2 border p-3 text-sm shadow-sm ${bannerTone}`}
           >
             {BannerIcon && <BannerIcon size={16} className="mt-0.5 shrink-0" />}
             <div>
@@ -484,14 +490,14 @@ export default function LiveScanner() {
 
           <div className="mt-5">
             <p className="text-xs font-semibold text-slate-500">Scanner device</p>
-            <div className="mt-1.5 grid grid-cols-2 gap-2" role="group" aria-label="Scanner device">
+            <div className="mt-1.5 grid grid-cols-2 gap-2 rounded-xl2 bg-slate-50 p-1" role="group" aria-label="Scanner device">
               <button
                 type="button"
                 onClick={() => selectCamera(cameraId)}
                 className={`flex min-h-11 items-center justify-center gap-2 rounded-xl2 border px-2 py-2 text-xs font-semibold transition ${
                   deviceMode === "camera"
-                    ? "border-primary bg-primary text-white"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-primary/40"
+                    ? "border-primary bg-primary text-white shadow-md"
+                    : "border-transparent bg-white text-slate-600 hover:border-primary/30"
                 }`}
               >
                 <Camera size={16} /> Camera
@@ -501,8 +507,8 @@ export default function LiveScanner() {
                 onClick={activateHardwareScanner}
                 className={`flex min-h-11 items-center justify-center gap-2 rounded-xl2 border px-2 py-2 text-xs font-semibold transition ${
                   deviceMode === "hardware"
-                    ? "border-primary bg-primary text-white"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-primary/40"
+                    ? "border-primary bg-primary text-white shadow-md"
+                    : "border-transparent bg-white text-slate-600 hover:border-primary/30"
                 }`}
               >
                 <ScanBarcode size={16} /> USB Scanner
@@ -530,7 +536,7 @@ export default function LiveScanner() {
 
           <button
             onClick={() => deviceMode === "hardware" ? hardwareInputRef.current?.focus() : restartCamera()}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl2 bg-primary px-4 py-2.5 text-sm font-semibold text-white transition active:scale-[0.98]"
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl2 bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(37,99,235,.2)] transition hover:bg-primary-600 active:scale-[0.98]"
           >
             <RefreshCw size={15} />
             {deviceMode === "hardware" ? "Focus scanner input" : "Restart camera"}
